@@ -1,0 +1,70 @@
+version: '3.7'
+
+services:
+    jrs-server:
+        image: kershov/jasperserver:7.5.0
+        container_name: jrs-server
+        build:
+            context: ./js-docker
+            dockerfile: Dockerfile
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+            - ./js-docker/license:/usr/local/share/jasperserver/license
+            - ./js-docker/keystore:/usr/local/share/jasperserver/keystore
+        env_file: 
+            - ./js-docker/jasperreports-server.env
+            - ./js-docker/smtp.env
+        environment:
+            - DB_HOST=jrs-postgresql
+        depends_on:
+            - jrs-cmdline
+        command: ['/wait-for-container-to-exit.sh', 'jrs-cmdline', '-t' , '30', '--', '/entrypoint-ce.sh', 'run']
+        ports:
+            - 8080:8080
+            - 8443:8443
+
+    jrs-cmdline:
+        image: kershov/jasperserver-cmdline:7.5.0
+        container_name: jrs-cmdline
+        build:
+            context: ./js-docker
+            dockerfile: Dockerfile-cmdline
+        volumes:
+            - ./js-docker/license:/usr/local/share/jasperserver/license
+            - ./js-docker/keystore:/usr/local/share/jasperserver/keystore
+        env_file: ./js-docker/jasperreports-server.env
+        environment:
+            - DB_HOST=jrs-postgresql
+            - JRS_LOAD_SAMPLES=false
+        depends_on:
+            - jrs-postgresql
+        command: ['/wait-for-it.sh', 'jrs-postgresql:5432', '-t' , '30', '--', '/entrypoint-cmdline-ce.sh', 'init']
+        
+    jrs-postgresql:
+        image: postgres:latest
+        container_name: jrs-postgresql
+        environment:
+            - POSTGRES_USER=postgres
+            - POSTGRES_PASSWORD=postgres
+        volumes:
+            - ./init:/docker-entrypoint-initdb.d
+            - jrs_pgdata:/var/lib/postgresqlql/data
+        ports:
+            - 5432:5432
+        
+    jrs-pgadmin:
+        image: dpage/pgadmin4:latest
+        container_name: jrs-pgadmin
+        environment:
+            PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@pgadmin.org}
+            PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-password}
+        volumes:
+            - jrs_pgadmin:/root/.pgadmin
+        depends_on:
+            - jrs-postgresql
+        ports:
+            - 8888:80
+
+volumes:
+    jrs_pgdata:
+    jrs_pgadmin:

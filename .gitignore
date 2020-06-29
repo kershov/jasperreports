@@ -1,0 +1,5 @@
+init/*.sql
+init/*.sh
+smtp.env
+js-docker/keystore
+js-docker/license
